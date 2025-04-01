@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 dotenv.config();
 const TMDB_API_KEY = process.env.TMDB_API_KEY; // Replace with your API key
 const TMDB_API_URL = "https://api.themoviedb.org/3/search";
+/* Get rid of this */
 interface MovieResult {
 	id: number;
 	title: string;
@@ -26,7 +27,49 @@ type show = {
 };
 type movie = { title: string; year: number };
 type MediaMetadata = MovieResult | TVShowResult | null;
+
+/* Replace with this which is more generic */
+interface MediaBase {
+	title: string;
+}
+
+interface Movie extends MediaBase {
+	year: number;
+}
+
+interface TVShow extends MediaBase {
+	season: number;
+	episode: number;
+}
+
+type Media = Movie | TVShow;
+
 export async function extractMediaInfo(filename: string) {
+	const Regex_Shows =
+		/^(?<title>.*?)S(?<season>\d{1,2})E(?<episode>\d{2,3}|\d)/i;
+	const Regex_Movies = /^(?<title>.+?)(.|_)(?<year>(19|20)\d{2})/i;
+	const match_Show = filename.match(Regex_Shows);
+	const match_Movie = filename.match(Regex_Movies);
+	let show = null;
+	let movie = null;
+	if (match_Show?.groups) {
+		show = {
+			title: match_Show.groups.title.replace(/[._]/g, " ").trim(),
+			season: Number.parseInt(match_Show.groups.season),
+			episode: Number.parseInt(match_Show.groups.episode),
+		};
+	}
+	if (match_Movie?.groups) {
+		movie = {
+			title: match_Movie.groups.title.replace(/[._]/g, " ").trim(),
+			year: Number.parseInt(match_Movie.groups.year, 10),
+		};
+	}
+	return { show, movie };
+}
+
+/* Works fine, we need to make it comparable to generic types */
+export async function extractMediaInfo_old(filename: string) {
 	let show: show | undefined = undefined;
 	let movie: movie | undefined = undefined;
 	const Regex_Shows =
@@ -48,10 +91,11 @@ export async function extractMediaInfo(filename: string) {
 	}
 	return [show, movie];
 }
-export async function getMediaMetadataTMDB(
+/* Works fine, we need to make it comparable to generic types */
+export async function getMediaMetadataTMDB_old(
 	fileName: string,
 ): Promise<MediaMetadata> {
-	const [show, movie] = (await extractMediaInfo(fileName)) as [show, movie];
+	const [show, movie] = (await extractMediaInfo_old(fileName)) as [show, movie];
 
 	if (show) {
 		const apiUrl = `${TMDB_API_URL}/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(show.title)}&include_adult=false&language=en-US&page=1`;
