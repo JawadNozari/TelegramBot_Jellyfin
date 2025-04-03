@@ -26,8 +26,8 @@ bun install
 ```
 
 ### Before running the bot make sure to modify your config file at `src/config.ts` 
-To run:
+To run in dev mode:
 
 ```bash
-bun run TelegramBot.ts
+bun run dev
 ```
