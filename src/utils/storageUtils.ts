@@ -165,3 +165,32 @@ export async function prepareStorage(
 		return { success: false, message: "❌ Error preparing storage." };
 	}
 }
+
+
+
+export async function getDiskUsage() {
+	return new Promise<string>((resolve, reject) => {
+		exec('diskutil info "/Volumes/SSD"', (error, stdout) => {
+			if (error) {
+				console.error("Error running diskutil:", error.message);
+				return reject(error);
+			}
+			const totalMatch = stdout.match(/Volume Total Space:\s+([\d,.]+) GB/);
+			const usedMatch = stdout.match(/Volume Used Space:\s+([\d,.]+) GB/);
+			const freeMatch = stdout.match(/Volume Free Space:\s+([\d,.]+) GB/);
+
+			if (!totalMatch || !usedMatch || !freeMatch) {
+				console.error("Could not parse diskutil output:", stdout);
+				return reject(new Error("Could not parse disk usage info."));
+			}
+
+			const total = `${totalMatch[1]} GB`;
+			const used = `${usedMatch[1]} GB`;
+			const free = `${freeMatch[1]} GB`;
+
+			resolve(
+				`💾 *SSD Storage Info:*\n📦 Total: ${total}\n🔴 Used: ${used}\n🟢 Free: ${free}`,
+			);
+		});
+	});
+}

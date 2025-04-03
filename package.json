@@ -9,7 +9,8 @@
 		"typescript": "^5.0.0"
 	},
 	"scripts": {
-		"dev": "nodemon --exec bun run ./src/telegramBot.ts"
+		"dev": "nodemon --exec bun run ./src/telegramBot.ts",
+		"start": "bun run ./src/telegramBot.ts"
 	},
 	"dependencies": {
 		"@types/node-fetch": "^2.6.12",
