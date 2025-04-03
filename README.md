@@ -1,6 +1,13 @@
 # telegrambot_jellyfin
 
-To install dependencies:
+
+Create Your own telegram ID 
+
+Telegram [Documentation](https://core.telegram.org/bots/api)
+
+Add required environment variables to your `.env` file
+
+install dependencies:
 
 ```bash
 bun install
@@ -9,7 +16,5 @@ bun install
 To run:
 
 ```bash
-bun run index.ts
+bun run TelegramBot.ts
 ```
-
-This project was created using `bun init` in bun v1.2.0. [Bun](https://bun.sh) is a fast all-in-one JavaScript runtime.
