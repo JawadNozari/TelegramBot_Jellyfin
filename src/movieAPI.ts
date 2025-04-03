@@ -29,20 +29,20 @@ type movie = { title: string; year: number };
 type MediaMetadata = MovieResult | TVShowResult | null;
 
 /* Replace with this which is more generic */
-interface MediaBase {
-	title: string;
-}
+// interface MediaBase {
+// 	title: string;
+// }
 
-interface Movie extends MediaBase {
-	year: number;
-}
+// interface Movie extends MediaBase {
+// 	year: number;
+// }
 
-interface TVShow extends MediaBase {
-	season: number;
-	episode: number;
-}
+// interface TVShow extends MediaBase {
+// 	season: number;
+// 	episode: number;
+// }
 
-type Media = Movie | TVShow;
+// type Media = Movie | TVShow;
 
 export async function extractMediaInfo(filename: string) {
 	const Regex_Shows =

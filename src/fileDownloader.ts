@@ -1,27 +1,35 @@
 import fetch, { type Response } from "node-fetch";
 import progress from "progress";
 import * as fs from "node:fs/promises";
+import { createWriteStream } from "node:fs";
 import * as path from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises"; // Use the promise-based version
-import type { BotContext } from "./TelegramBot";
+import type { BotContext } from "./telegramBot";
 import type { Bot } from "grammy";
+import { prepareStorage } from "./storageUtils";
 export async function Downloader(
 	url: string,
 	filePath: string,
+	remoteSize: number,
 	chatId: number,
 	botInstance: Bot<BotContext>,
 ): Promise<void> {
+	const prepareStorageResult = await prepareStorage(filePath, remoteSize);
+	const filenameURI = decodeURIComponent(path.basename(url));
+	if (!prepareStorageResult) {
+		console.warn("Skipping download as storage preparation failed.");
+		return;
+	}
 	const controller = new AbortController();
 	const timeout = setTimeout(() => controller.abort(), 60000); // 1-minute timeout
 	try {
 		let response: Response;
-		response = await fetch(url, { signal: controller.signal });
-		clearTimeout(timeout);
-		if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
 		try {
-			response = await fetch(url);
+			response = await fetch(url, { signal: controller.signal });
+			clearTimeout(timeout);
+			if (!response.ok)
+				throw new Error(`HTTP error! status: ${response.status}`);
 		} catch (error) {
 			await botInstance.api.sendMessage(
 				chatId,
@@ -66,8 +74,8 @@ export async function Downloader(
 		const updateInterval = 3000; // Update progress every 5 seconds for telegram
 		const updateintervalProgressBar = 1000; // Update progress every 1 second for progress bar (Terminal)
 		let lastUpdate = Date.now();
+		// biome-ignore lint: <explanation>
 		let lastUpdateTerminal = Date.now();
-
 		if (!response.body) {
 			await botInstance.api.sendMessage(
 				chatId,
@@ -76,15 +84,14 @@ export async function Downloader(
 			console.debug("Response body is null");
 			return;
 		}
-
-		const fileStream = await fs.open(filePath, "w");
-		const writer = fileStream.createWriteStream();
+		const DownloadPath = path.join(filePath, filenameURI);
+		const writer = createWriteStream(DownloadPath);
 		try {
 			// Stream the response body directly into the file
 			await pipeline(
 				response.body,
 				new Transform({
-					transform(chunk, encoding, callback) {
+					transform(chunk, _encoding, callback) {
 						bytesReceived += chunk.length;
 						const now = Date.now();
 						const progressPercent = Math.floor(
@@ -122,14 +129,13 @@ export async function Downloader(
 				chatId,
 				`Error during download: ${error instanceof Error ? error.message : String(error)}`,
 			);
-			await fs.unlink(filePath); // Delete incomplete file
+			await fs.unlink(DownloadPath); // Delete incomplete file
 			throw error;
 		} finally {
 			await writer.close();
-			await fileStream.close();
 		}
 
-		console.log("Download complete:", filePath);
+		console.log("Download complete:", DownloadPath);
 	} catch (error) {
 		console.error("Download failed:", error);
 		await botInstance.api.sendMessage(

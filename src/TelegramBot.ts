@@ -1,10 +1,15 @@
 import dotenv from "dotenv";
 import * as path from "node:path";
-import * as fs from "node:fs/promises";
-import { Downloader } from "./fileDownloader";
-import { Bot, session, type SessionFlavor, type Context } from "grammy";
 import { extractMediaInfo } from "./movieAPI";
+import { Downloader } from "./fileDownloader";
 import { InlineKeyboardMarkup } from "./Keyboards";
+import { Bot, session, type SessionFlavor, type Context } from "grammy";
+import {
+	getFileSize,
+	checkFileExistence,
+	prepareStorage,
+} from "./storageUtils";
+
 /* CONFIG */
 dotenv.config();
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -22,6 +27,7 @@ if (!Telegram_ID) {
 interface SessionData {
 	downloadLink?: string;
 	filename?: string;
+	title?: string;
 	category?: { Movie: boolean; Show: boolean };
 	year?: number;
 	season?: number;
@@ -39,6 +45,7 @@ function initial(): SessionData {
 	return {
 		downloadLink: "",
 		filename: "",
+		title: "",
 		category: { Movie: false, Show: false },
 		year: 0,
 		season: 0,
@@ -59,7 +66,7 @@ bot.use(async (ctx, next) => {
 	await next(); // Allow only you to proceed
 });
 // Command handler for /download
-bot.command("download", async (ctx) => {
+bot.command("d", async (ctx) => {
 	const parts = ctx.message?.text?.split(" ") || [];
 	if (parts.length < 2) {
 		return ctx.reply("Usage: /download <link>");
@@ -67,25 +74,20 @@ bot.command("download", async (ctx) => {
 	const link = parts[1];
 	const urlParts = new URL(link);
 	const filename = decodeURIComponent(path.basename(urlParts.pathname));
-
-	ctx.session.filename = filename;
+	ctx.session.filename = filename; // Store filename in session
 	ctx.session.downloadLink = link.toString();
 	ctx.session.fileExtension = path.extname(filename);
 	// Automatically determine if it's a Movie or a Show
 	const { show, movie } = await extractMediaInfo(filename);
 	if (movie) {
 		ctx.session.category = { Movie: true, Show: false };
-		ctx.session.filename = movie.title;
+		ctx.session.title = movie.title;
 		ctx.session.year = movie.year;
-		console.log(`Detected Movie: ${movie.title} (${movie.year})`);
 	} else if (show) {
 		ctx.session.category = { Movie: false, Show: true };
-		ctx.session.filename = show.title;
+		ctx.session.title = show.title;
 		ctx.session.season = show.season;
 		ctx.session.episode = show.episode;
-		console.log(
-			`Detected Show: ${show.title} - Season ${show.season}, Episode ${show.episode}`,
-		);
 	} else {
 		console.warn("Could not determine media type from filename.");
 		await ctx.reply(
@@ -96,13 +98,12 @@ bot.command("download", async (ctx) => {
 		);
 	}
 
-	// Inform the user about the detected type
 	await ctx.reply(
-		`Detected: ${ctx.session.category?.Movie ? "Movie" : "Show"}\n\nFile: ${filename}`,
+		`Detected: ${ctx.session.category?.Movie ? "Movie" : "Show"}\n\nConfirm download?\n\nFile: ${ctx.session.filename}`,
+		{
+			reply_markup: InlineKeyboardMarkup(),
+		},
 	);
-	await ctx.reply(`Confirm download?\n\nFile: ${ctx.session.filename}`, {
-		reply_markup: InlineKeyboardMarkup(),
-	});
 });
 
 bot.on("callback_query:data", async (ctx) => {
@@ -122,41 +123,51 @@ bot.on("callback_query:data", async (ctx) => {
 		return ctx.answerCallbackQuery("Unable to determine category.");
 	}
 	const fetchedCategory = ctx.session.category?.Movie ? "Movies" : "Shows";
-	const { name } = path.parse(filename);
+	const name = ctx.session.title || path.parse(filename).name;
 	let savePath = path.join(SAVE_DIRECTORY, fetchedCategory, name);
+
 	if (category.Show === true) {
-		savePath = path.join(SAVE_DIRECTORY, fetchedCategory, name);
-	}
-	// Ensure directory exists
-	const mkdirResult = await fs
-		.mkdir(savePath, { recursive: true })
-		.catch((error) => {
-			console.error("Error creating folder:", error);
-			return null;
-		});
-	if (!mkdirResult) {
-		return ctx.answerCallbackQuery(
-			"Error creating folder. This file may already exist.",
+		savePath = path.join(
+			SAVE_DIRECTORY,
+			fetchedCategory,
+			name,
+			`S${ctx.session.season?.toString().slice(-2)}`,
 		);
 	}
-	console.debug(`Folder created (or already exists): ${savePath}`);
-	// Set final file path
-	const filePath = path.join(
+	// Get file size
+	const remoteSize = await getFileSize(link);
+
+	if (!remoteSize) {
+		await ctx.reply("⚠️ Unable to determine file size! Proceed with caution.");
+	} else {
+		await ctx.reply(`📦 File Size: ${(remoteSize / 1024 ** 3).toFixed(2)} GB`);
+	}
+
+	// 📂 Check if file exists and compare size
+	const possibleFilePath = path.join(savePath, filename);
+	const checkFileExist = await checkFileExistence(
+		possibleFilePath,
+		remoteSize,
 		savePath,
-		`${filename}_S${ctx.session.season?.toString().slice(-2)}E${ctx.session.episode?.toString().slice(-2)}${ctx.session.fileExtension}`,
 	);
+	await ctx.reply(checkFileExist.message);
+
+	if (!checkFileExist.proceed) {
+		console.warn("Skipping download as file already exists.");
+		return;
+	}
 
 	// Notify user
 	await ctx.answerCallbackQuery(
 		`Downloading as ${fetchedCategory.toUpperCase()}...`,
 	);
 	await ctx.editMessageText(
-		`Downloading file from ${link}...\nSaving to ${filePath}`,
+		`Downloading file from ${link}...\nSaving to ${savePath}`,
 	);
 
 	setImmediate(() => {
 		if (ctx.chat) {
-			void Downloader(link, filePath, ctx.chat.id, bot)
+			void Downloader(link, savePath, remoteSize, ctx.chat.id, bot)
 				.then(() => ctx.reply(`Download complete! Saved as ${filename}.`))
 				.catch((err) => ctx.reply(`Download failed: ${err.message}`));
 		} else {
@@ -164,8 +175,8 @@ bot.on("callback_query:data", async (ctx) => {
 			void ctx.reply("Error: Unable to determine chat context.");
 		}
 	});
-	await ctx.reply(`Download complete! Saved as ${filename} on the server.`);
 });
+
 // Start the bot
 bot.start();
 bot.catch((err) => {

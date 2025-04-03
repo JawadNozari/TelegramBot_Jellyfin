@@ -5,7 +5,7 @@ import dotenv from "dotenv";
 dotenv.config();
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const Telegram_ID = process.env.Telegram_ID;
-const CHAT_ID = process.env.CHAT_ID; // Your Telegram Chat ID
+
 if (!BOT_TOKEN) {
 	throw new Error("BOT_TOKEN is not defined in the environment variables.");
 }
@@ -57,6 +57,7 @@ bot.command("storage", async (ctx) => {
 		const storageInfo = await getDiskUsage();
 		await ctx.reply(storageInfo, { parse_mode: "Markdown" });
 	} catch (error) {
+		console.error("Error retrieving SSD storage info:", error);
 		await ctx.reply("Error retrieving SSD storage info.");
 	}
 });
