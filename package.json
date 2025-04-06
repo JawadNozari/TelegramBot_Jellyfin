@@ -10,15 +10,22 @@
 	},
 	"scripts": {
 		"dev": "nodemon --exec bun run ./src/telegramBot.ts",
-		"start": "bun run ./src/telegramBot.ts"
+		"build": "bun build",
+		"start": "bun dist/telegramBot.js"
 	},
 	"dependencies": {
+		"@types/multi-progress": "^2.0.6",
 		"@types/node-fetch": "^2.6.12",
 		"@types/progress": "^2.0.7",
+		"@types/progress-stream": "^2.0.5",
 		"dotenv": "^16.4.7",
 		"grammy": "^1.35.1",
+		"log-update": "^6.1.0",
+		"multi-progress": "^4.0.0",
 		"node-fetch": "^3.3.2",
 		"nodemon": "^3.1.9",
-		"progress": "^2.0.3"
+		"p-limit": "^6.2.0",
+		"progress": "^2.0.3",
+		"progress-stream": "^2.0.0"
 	}
 }

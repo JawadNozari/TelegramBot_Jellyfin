@@ -3,7 +3,7 @@
 		"rules": {
 			"correctness": {
 				"noUnusedVariables": {
-					"level": "error",
+					"level": "warn",
 					"fix": "none"
 				}
 			},

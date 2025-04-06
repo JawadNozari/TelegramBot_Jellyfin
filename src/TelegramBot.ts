@@ -1,9 +1,10 @@
 import { Bot } from "grammy";
 import { BOT_TOKEN, Telegram_ID } from "./config";
-import { sessionMiddleware, type BotContext } from "./utils/session";
+import { getDiskUsage } from "./utils/storageUtils";
 import { handleDownload } from "./handlers/download";
 import { handleCallback } from "./handlers/callback";
-import { getDiskUsage } from "./utils/storageUtils";
+import { deleteSessionMessages } from "./handlers/deleteMessage";
+import { sessionMiddleware, type BotContext } from "./utils/session";
 import { addChat, getChats, storeMessageDetails } from "./chatStorage"; // Import storage functions
 /* Initialize the bot */
 if (!BOT_TOKEN) {
@@ -26,7 +27,7 @@ const checkAndStoreChat = (
 
 	if (!existingChat) {
 		addChat(chatId.toString(), userId, username, firstName, lastName, label);
-		console.log(`Chat with ID ${chatId} added to database.`);
+		// console.log(`Chat with ID ${chatId} added to database.`);
 	}
 };
 /* Middleware for authentication */
@@ -45,6 +46,7 @@ bot.use(async (ctx, next) => {
 		storeMessageDetails(
 			ctx.chat.id,
 			ctx.from.id,
+			ctx.message?.message_id ?? 0,
 			ctx.message?.text ?? "No text",
 			new Date(),
 		);
@@ -59,6 +61,10 @@ bot.use(async (ctx, next) => {
 
 /* Command Handlers */
 bot.command("d", async (ctx) => {
+	if (!ctx.message) return;
+	if (!ctx.session.messagesToDelete.includes(ctx.message.message_id)) {
+		ctx.session.messagesToDelete.push(ctx.message.message_id);
+	}
 	// Add or ensure chat is in database
 	if (ctx.chat && ctx.from) {
 		// Add or ensure chat is in the database with user info
@@ -71,12 +77,28 @@ bot.command("d", async (ctx) => {
 			"Download Started",
 		);
 	}
+
 	await handleDownload(ctx);
 });
-bot.command("storage", async (ctx) => {
+bot.command(["storage", "s", "S"], async (ctx) => {
+	if (!ctx.message) return;
+	if (!ctx.session.messagesToDelete.includes(ctx.message.message_id)) {
+		ctx.session.messagesToDelete.push(ctx.message.message_id);
+	}
+	setTimeout(
+		() => {
+			deleteSessionMessages(ctx);
+		},
+		1000 * 60 * 5,
+	); // Remove the message after 5 minutes
+
 	try {
 		const storageInfo = await getDiskUsage();
-		await ctx.reply(storageInfo, { parse_mode: "Markdown" });
+		await ctx.reply(storageInfo, { parse_mode: "Markdown" }).then((msg) => {
+			if (!ctx.session.messagesToDelete.includes(msg.message_id)) {
+				ctx.session.messagesToDelete.push(msg.message_id);
+			}
+		});
 	} catch (error) {
 		console.error("Error retrieving SSD storage info:", error);
 		await ctx.reply("Error retrieving SSD storage info.");
@@ -98,6 +120,7 @@ bot.on("message", async (ctx) => {
 		storeMessageDetails(
 			ctx.chat.id,
 			ctx.from.id,
+			ctx.message?.message_id ?? 0,
 			ctx.message?.text ?? "No text",
 			new Date(),
 		);

@@ -20,6 +20,7 @@ db.run(`
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       chatId TEXT,
       userId INTEGER,
+      messageId INTEGER,
       messageContent TEXT,
       timestamp TEXT
     )
@@ -56,16 +57,17 @@ export function addChat(
 export function storeMessageDetails(
 	chatId: number,
 	userId: number,
+	messageId: number,
 	messageContent: string,
 	timestamp: Date,
 ) {
 	// Insert message into the messages table
 	db.prepare(`
-      INSERT INTO messages (chatId, userId, messageContent, timestamp)
-      VALUES (?, ?, ?, ?)
-    `).run(chatId, userId, messageContent, timestamp.toISOString());
+      INSERT INTO messages (chatId, userId,messageId, messageContent, timestamp)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(chatId, userId, messageId, messageContent, timestamp.toISOString());
 
-	console.log(`Message stored for chat ${chatId}: ${messageContent}`);
+	// console.log(`Message stored for chat ${chatId}: ${messageContent}`);
 }
 
 // Remove a chat from the database

@@ -1,5 +1,6 @@
-import fetch from "node-fetch";
 import dotenv from "dotenv";
+import fetch from "node-fetch";
+
 dotenv.config();
 const TMDB_API_KEY = process.env.TMDB_API_KEY; // Replace with your API key
 const TMDB_API_URL = "https://api.themoviedb.org/3/search";
@@ -27,22 +28,6 @@ type show = {
 };
 type movie = { title: string; year: number };
 type MediaMetadata = MovieResult | TVShowResult | null;
-
-/* Replace with this which is more generic */
-// interface MediaBase {
-// 	title: string;
-// }
-
-// interface Movie extends MediaBase {
-// 	year: number;
-// }
-
-// interface TVShow extends MediaBase {
-// 	season: number;
-// 	episode: number;
-// }
-
-// type Media = Movie | TVShow;
 
 export async function extractMediaInfo(filename: string) {
 	const Regex_Shows =

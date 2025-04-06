@@ -1,7 +1,8 @@
-import * as fs from "node:fs/promises";
-import { stat, mkdir, access } from "node:fs/promises";
-import { exec } from "node:child_process";
 import { promisify } from "node:util";
+import * as fs from "node:fs/promises";
+import { exec } from "node:child_process";
+import { stat, mkdir, access } from "node:fs/promises";
+
 const execPromise = promisify(exec);
 
 /**
@@ -22,9 +23,16 @@ export async function getFileSize(url: string): Promise<number> {
 		console.warn("⚠️ Content-Length header missing!");
 		return 0;
 	} catch (error) {
-		console.error("❌ Error fetching file size:", error);
-		return 0;
+		if (
+			url.startsWith("https://") &&
+			error instanceof Error &&
+			error.message.includes("certificate has expired")
+		) {
+			const fallbackLink = url.replace("https://", "http://");
+			return getFileSize(fallbackLink); // retry with HTTP
+		}
 	}
+	return 0;
 }
 /**
  * Check if a file already exists and compare its size with the remote file.
@@ -39,7 +47,8 @@ export async function checkFileExistence(
 ): Promise<{ message: string; proceed: boolean }> {
 	try {
 		const stats = await fs.stat(filePath);
-
+		// get file name from path
+		const fileName = filePath.split("/").pop();
 		if (stats.isDirectory()) {
 			return {
 				message: `⚠️ The path points to a directory instead of a file: ${filePath}.`,
@@ -51,9 +60,7 @@ export async function checkFileExistence(
 
 			if (localSize === remoteSize) {
 				return {
-					message: `✅ File already exists and is complete (${(
-						localSize / 1024 / 1024
-					).toFixed(2)} MB). Skipping download.`,
+					message: `✅ File already exists: ${fileName}\nRemote: ${(remoteSize / 1024 / 1024).toFixed(2)} MB\nLocal: ${(localSize / 1024 / 1024).toFixed(2)} MB\nSkipping download!`,
 					proceed: false,
 				};
 			}
@@ -165,8 +172,6 @@ export async function prepareStorage(
 		return { success: false, message: "❌ Error preparing storage." };
 	}
 }
-
-
 
 export async function getDiskUsage() {
 	return new Promise<string>((resolve, reject) => {

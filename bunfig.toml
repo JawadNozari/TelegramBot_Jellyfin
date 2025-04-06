@@ -1,0 +1,6 @@
+[entrypoints]
+main = "src/index.ts"
+
+[build]
+target = "bun"
+outdir = "dist"
